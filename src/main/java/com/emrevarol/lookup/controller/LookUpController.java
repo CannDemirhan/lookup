@@ -1,20 +1,26 @@
 package com.emrevarol.lookup.controller;
 
-import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
+
+import javax.validation.Valid;
 
 import org.apache.commons.lang3.tuple.MutablePair;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.emrevarol.lookup.model.UrlDto;
 import com.emrevarol.lookup.service.LookUpService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/lookup")
@@ -23,14 +29,28 @@ public class LookUpController {
     private final LookUpService lookUpService;
 
     @PostMapping("/findPrettyUrls")
-    public List<MutablePair<String, String>> lookUpKey(@RequestBody String[] urlArray) {
-        Set<String> keys = Arrays.stream(urlArray).collect(Collectors.toSet());
-        return lookUpService.getPrettyUrls(keys);
+    public ResponseEntity<Object> lookUpKey(@RequestBody @Valid UrlDto urlDto) {
+        try {
+            log.info("Getting pretty urls request started. UrlDto: {}", urlDto);
+            Set<String> keys = new HashSet<>(urlDto.getUrls());
+            return ResponseEntity.status(HttpStatus.OK).body(lookUpService.getUrls(keys));
+        }
+        catch (Exception e) {
+            log.warn("Internal server error while getting paramterized urls", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR.value()).body(e.getMessage());
+        }
     }
 
     @PostMapping("/findParameterizedUrls")
-    public List<MutablePair<String, String>> getParameterizedUrls(@RequestBody String[] keyArray) {
-        Set<String> keys = Arrays.stream(keyArray).collect(Collectors.toSet());
-        return lookUpService.getParameterizedUrls(keys);
+    public ResponseEntity<Object> getParameterizedUrls(@RequestBody @Valid UrlDto urlDto) {
+        try {
+            log.info("Getting parameterized urls request started. UrlDto: {}", urlDto);
+            Set<String> keys = new HashSet<>(urlDto.getUrls());
+            return ResponseEntity.status(HttpStatus.OK).body(lookUpService.getUrls(keys));
+        }
+        catch (Exception e) {
+            log.warn("Internal server error while getting paramterized urls", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR.value()).body(e.getMessage());
+        }
     }
 }

@@ -1,74 +1,52 @@
 package com.emrevarol.lookup.service;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.MutablePair;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
+import com.emrevarol.lookup.configuration.RedisConfig;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class LookUpService {
 
-    private final Map<String, String> keyValueMap = new HashMap<>();
+    private final RedisTemplate<String, String> redisRepository;
 
-    @PostConstruct
-    private void init() {
-        keyValueMap.put("/products", "/Fashion");
-        keyValueMap.put("/products?gender=female", "Women");
-        keyValueMap.put("/products?tag=5678", "/Boat--Shoes");
-        keyValueMap.put("/products?gender=female&tag=123&tag=1234", "/Women/Shoes");
-        keyValueMap.put("/products?gender=female&tag=123&tag=1234&tag=3535", "/Women/Bags");
-        keyValueMap.put("/products?brand=123", "/Adidas/");
-        keyValueMap.put("/products?brand=123&tag=333", "/Adidas/Hats");
+    @Cacheable(RedisConfig.URL_CACHE)
+    public List<MutablePair<String, String>> getUrls(Set<String> keys) {
+        return keys.stream().map(s -> new MutablePair<>(s, findUrl(s))).toList();
     }
 
-    public List<MutablePair<String, String>> getPrettyUrls(Set<String> keys) {
-        return keys.stream().map(s -> new MutablePair<>(s, findPrettyUrls(s))).toList();
-    }
-
-    public List<MutablePair<String, String>> getParameterizedUrls(Set<String> keys) {
-        return keys.stream().map(s -> new MutablePair<>(s, findParameterizedUrls(s))).toList();
-    }
-
-    private String findParameterizedUrls(String value) {
-        for (Map.Entry<String, String> entry : keyValueMap.entrySet()) {
-            if (Objects.equals(value, entry.getValue())) {
-                return entry.getKey();
-            }
-        }
-        return null;
-    }
-
-
-    private String findPrettyUrls(String key) {
-        if (keyValueMap.containsKey(key)) {
-            return keyValueMap.get(key);
+    private String findUrl(String url) {
+        String s = redisRepository.opsForValue().get(url);
+        if (!StringUtils.isEmpty(s)) {
+            return s;
         }
 
-        String keyCopy = key;
+        String urlCopy = url;
 
         do {
-            if (keyCopy.contains("&") || keyCopy.contains("?")) {
-                keyCopy = removeLastParameter(keyCopy);
+            //check if url contains parameters
+            if (urlCopy.contains("&") || urlCopy.contains("?")) {
+                urlCopy = removeLastParameter(urlCopy);
             } else {
-                break;
+                return url;
             }
-        } while (!keyValueMap.containsKey(keyCopy));
+        } while (StringUtils.isEmpty(redisRepository.opsForValue().get(urlCopy)));
 
-        String difference = StringUtils.difference(keyCopy, key);
-        String value = keyValueMap.get(keyCopy);
-        if (difference.charAt(0) == '&') {
-            value += "?".concat(difference.substring(1, difference.length() - 1));
-        } else {
-            value += difference;
-        }
-        return value;
+        String difference = StringUtils.difference(urlCopy, url);
+        String value = redisRepository.opsForValue().get(urlCopy);
+
+        return (!StringUtils.isEmpty(difference) && difference.charAt(0) == '&') ?
+            value + "?".concat(difference.substring(1)) :
+            value + difference;
     }
 
     private String removeLastParameter(String url) {
@@ -80,4 +58,5 @@ public class LookUpService {
         }
         return url;
     }
+
 }
